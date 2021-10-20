@@ -22,7 +22,7 @@ def GetIP():
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(('8.8.8.8',80))
         ipaddr = s.getsockname()[0]
-        #ipaddr = "192.168.195.175"
+        #ipaddr = "your ip"
     except:
         print(NowTime() + 'Get ip failed, please check your network setting, exit!')
         exit(444)
@@ -44,18 +44,19 @@ def GetMD5(str):
     return (m.hexdigest()).upper()
 
 def GetTime():
-    return int(time.time()*1000)
+    return str(int(time.time()*1000))
 
 def GetVerifyCode():
     print(NowTime() + 'Starting get verify code...')
-    timestr = str(GetTime())
+    timestr = GetTime()
     clientip = GetIP()
-    print(NowTime() + 'IP Address: ' + clientip)
-    C_rawdata = str(clientip + nasip + mac + timestr + md5_secret)
+    print(NowTime() + 'IP Address: ' , clientip)
+    C_rawdata = str(version + clientip + nasip + mac + timestr + md5_secret)
     md5str = GetMD5(C_rawdata)
     #print(NowTime() + "GetVerifyCode MD5加密结果：" + md5str)
-    Curl = url + 'challenge'
+    Curl = url + 'vchallenge'
     values = {
+        "version": version,
         "iswifi": "4060",
         "clientip": clientip,
         "nasip": nasip,
@@ -67,10 +68,11 @@ def GetVerifyCode():
     PostData = json.dumps(values)
     header = {'User-agent': ua}
     try:
-        Creq = requests.post(url=Curl, headers=header, data=PostData)
+        Creq = requests.post(url=Curl, headers=header, data=PostData, timeout=10)
+        print('Get code:', Creq.text)
         RCode = json.loads(Creq.text)
     except Exception as e:
-        print(NowTime() + 'Challenge Error: ' + e + ', response: ' + Creq.text)
+        print(NowTime() + 'Challenge Error: ' ,e)
         exit(444)
     else:
         #Check Get Challenge Result
@@ -115,7 +117,13 @@ def LoginHttpPost(token):
         Lreq = requests.post(url=Lurl, headers=header, data=PostData_Login)
         Lresp = json.loads(Lreq.text)
         if Lresp['rescode'] == '0':
-            print(NowTime() + 'Login successfully!')
+            print(NowTime() + user + '\tLogin successfully!')
+            exit(0)
+        else:
+            print(NowTime(), Lresp)
+            print(NowTime() + '认证出错，请查看报错信息，10s后退出！')
+            time.sleep(10)
+            exit(444)
         return Lreq.text
     except Exception as e:
         print(NowTime() + 'Login Error: ' + e + ', response: ' + Lreq.text)
@@ -158,7 +166,8 @@ if __name__ == "__main__":
     password = "xxx"                  #password
     clientip = GetIP()
     mac = GenFakeMAC()                        #Fake random mac address
-    wifi = "1050"                             #GDHSXY 'iswifi' is 1050
+    wifi = "1050" 
+    version = "214"                            #GDHSXY 'iswifi' is 1050
     url = "http://125.88.59.131:10001/client/"
     active = "http://enet.10000.gd.cn:8001/hbservice/client/active?"
     md5_secret = "Eshore!@#"
@@ -168,9 +177,11 @@ if __name__ == "__main__":
 
     try:
         #test internet status
-        rn = requests.get(url=testurl, timeout=10)
+        rn = requests.get(url=testurl, timeout=3)
     except Exception as e:
-        print(NowTime() + 'Check internet trigger error: ' + e)
+        print(NowTime() + 'Send internet request failed, seems WiFi is not ready or dns problem, please check your WiFi connection status and try again. Error message:\n', e)
+        print('try to direct auth...')
+        GoLogin()
     else:
         #if internet is normal, start keepalive, if not, go to login
         if rn.url == testurl:
